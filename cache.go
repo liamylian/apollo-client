@@ -1,60 +1,123 @@
-package apollo_client
+package agollo
 
 import (
-	"errors"
+	"encoding/gob"
+	"os"
 	"sync"
 )
 
-type CacheInterface interface {
-	Get(key string) (value string, err error)
-	Set(key string, value string) (err error)
-	Del(key string) (affected bool)
-	Range(f func(key, value string) bool)
+type namespaceCache struct {
+	lock   sync.Mutex
+	caches map[string]*cache
 }
 
-type CacheFactory interface {
-	Create() CacheInterface
-}
-
-type DefaultCache struct {
-	defaultCache sync.Map
-}
-
-func (d *DefaultCache) Get(key string) (value string, err error) {
-	v, ok := d.defaultCache.Load(key)
-	if !ok {
-		return "", errors.New("load default cache fail")
+func newNamespaceCahce() *namespaceCache {
+	return &namespaceCache{
+		caches: map[string]*cache{},
 	}
-	return v.(string), nil
 }
 
-func (d *DefaultCache) Set(key, value string) (err error) {
-	d.defaultCache.Store(key, value)
+func (n *namespaceCache) mustGetCache(namespace string) *cache {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+
+	if ret, ok := n.caches[namespace]; ok {
+		return ret
+	}
+
+	cache := newCache()
+	n.caches[namespace] = cache
+	return cache
+}
+
+func (n *namespaceCache) drain() {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+
+	for namespace := range n.caches {
+		delete(n.caches, namespace)
+	}
+}
+
+func (n *namespaceCache) dump(name string) error {
+	n.lock.Lock()
+	defer n.lock.Unlock()
+
+	var dumps = map[string]map[string]string{}
+
+	for namespace, cache := range n.caches {
+		dumps[namespace] = cache.dump()
+	}
+
+	f, err := os.OpenFile(name, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	return gob.NewEncoder(f).Encode(&dumps)
+}
+
+func (n *namespaceCache) load(name string) error {
+	n.drain()
+
+	f, err := os.OpenFile(name, os.O_RDONLY, 0755)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	var dumps = map[string]map[string]string{}
+
+	if err := gob.NewDecoder(f).Decode(&dumps); err != nil {
+		return err
+	}
+
+	for namespace, kv := range dumps {
+		cache := n.mustGetCache(namespace)
+		for k, v := range kv {
+			cache.set(k, v)
+		}
+	}
+
 	return nil
 }
 
-func (d *DefaultCache) Range(f func(key, value string) bool) {
-	d.defaultCache.Range(func(key, value interface{}) bool {
-		k, ok := key.(string)
-		if !ok {
-			return true
+type cache struct {
+	kv sync.Map
+}
+
+func newCache() *cache {
+	return &cache{
+		kv: sync.Map{},
+	}
+}
+
+func (c *cache) set(key, val string) {
+	c.kv.Store(key, val)
+}
+
+func (c *cache) get(key string) (string, bool) {
+	if val, ok := c.kv.Load(key); ok {
+		if ret, ok := val.(string); ok {
+			return ret, true
 		}
-		v, ok := key.(string)
-		if !ok {
-			return true
-		}
-		return f(k, v)
+	}
+	return "", false
+}
+
+func (c *cache) delete(key string) {
+	c.kv.Delete(key)
+}
+
+func (c *cache) dump() map[string]string {
+	var ret = map[string]string{}
+	c.kv.Range(func(key, val interface{}) bool {
+		k, _ := key.(string)
+		v, _ := val.(string)
+		ret[k] = v
+
+		return true
 	})
-}
-
-func (d *DefaultCache) Del(key string) (affected bool) {
-	d.defaultCache.Delete(key)
-	return true
-}
-
-type DefaultCacheFactory struct {
-}
-
-func (d *DefaultCacheFactory) Create() CacheInterface {
-	return &DefaultCache{}
+	return ret
 }
