@@ -18,19 +18,19 @@
 ### 使用 app.properties 配置文件启动
 
 ```golang
-    agollo.Start()
+    apollo.Start()
 ```
 
 ### 使用自定义配置启动
 
 ```golang
-    agollo.StartWithConfFile(name)
+    apollo.StartWithConfFile(name)
 ```
 
 ### 监听配置更新
 
 ```golang
-    events := agollo.WatchUpdate()
+    events := apollo.WatchUpdate()
     changeEvent := <-event
     bytes, _ := json.Marshal(changeEvent)
     fmt.Println("event:", string(bytes))
@@ -39,24 +39,24 @@
 ### 获取配置
 
 ```golang
-    agollo.GetStringValue(Key, defaultValue)
-    agollo.GetStringValueWithNameSapce(namespace, key, defaultValue)
+    apollo.GetStringValue(Key, defaultValue)
+    apollo.GetStringValueWithNameSapce(namespace, key, defaultValue)
 ```
 
 ### 获取文件内容
 
 ```golang
-    agollo.GetNameSpaceContent(namespace, defaultValue)
+    apollo.GetNameSpaceContent(namespace, defaultValue)
 ```
 
 ### 获取配置中所有的键
 
 ```golang
-    agollo.GetAllKeys(namespace)
+    apollo.GetAllKeys(namespace)
 ```
 
 ### 订阅namespace的配置
 
 ```golang
-    agollo.SubscribeToNamespaces("newNamespace1", "newNamespace2")
+    apollo.SubscribeToNamespaces("newNamespace1", "newNamespace2")
 ```

@@ -1,4 +1,4 @@
-package agollo
+package apollo
 
 // ChangeType for a key
 type ChangeType int
