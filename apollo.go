@@ -71,12 +71,14 @@ func newConfigUpdater(v interface{}) (*configUpdater, error) {
 	configElemType := configType
 	configVal := reflect.ValueOf(v)
 	configElemVal := configVal
-	if configType.Kind() == reflect.Ptr {
-		configElemType = configType.Elem()
-		configElemVal = configVal.Elem()
+	if configType.Kind() != reflect.Ptr {
+		return nil, errors.New("config must be pointer")
 	}
+
+	configElemType = configType.Elem()
+	configElemVal = configVal.Elem()
 	if configElemType.Kind() != reflect.Struct {
-		return nil, errors.New("invalid config")
+		return nil, errors.New("config must be pointer to struct")
 	}
 
 	config := &configUpdater{
